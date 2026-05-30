@@ -2,31 +2,51 @@ import cv2
 import time
 import datetime
 import smtplib
+import os
 from email.message import EmailMessage
+from dotenv import load_dotenv
 
-# --- OPTIONAL: EMAIL ALERT FUNCTION ---
-# To make this work, you need to use an "App Password" from your Google/Yahoo account.
-# Regular passwords won't work due to modern security protocols.
+# --- ΕΞΥΠΝΗ ΦΟΡΤΩΣΗ ΤΟΥ .env ΑΠΟ ΤΟΝ ΦΑΚΕΛΟ ΤΟΥ SCRIPT ---
+script_dir = os.path.dirname(os.path.abspath(__file__))
+dotenv_path = os.path.join(script_dir, '.env')
+load_dotenv(dotenv_path)
+
+# --- ΕΞΥΠΝΗ ΣΥΝΑΡΤΗΣΗ ΑΠΟΣΤΟΛΗΣ EMAIL ---
 def send_security_email(timestamp_str):
-    try:
-        sender_email = "YOUR_EMAIL@gmail.com"
-        sender_password = "YOUR_APP_PASSWORD" 
-        receiver_email = "YOUR_EMAIL@gmail.com"
+    sender_email = os.getenv("SENDER_EMAIL")
+    sender_password = os.getenv("SENDER_PASSWORD")
+    receiver_email = os.getenv("RECEIVER_EMAIL")
+    smtp_server = os.getenv("SMTP_SERVER")
+    smtp_port_str = os.getenv("SMTP_PORT")
 
+    # Safety check: Βεβαιωνόμαστε ότι διαβάστηκαν όλα
+    if not all([sender_email, sender_password, receiver_email, smtp_server, smtp_port_str]):
+        print(" [EMAIL WARNING] Λείπουν στοιχεία από το .env. Το email δεν στάλθηκε.")
+        return
+
+    try:
+        # Μετατρέπουμε το Port από κείμενο σε αριθμό
+        smtp_port = int(smtp_port_str)
+        
         msg = EmailMessage()
         msg.set_content(f"Security Alert! Human detected on camera at {timestamp_str}.")
         msg['Subject'] = 'SECURITY ALERT - Motion Detected'
         msg['From'] = sender_email
         msg['To'] = receiver_email
 
-        # Connect to Gmail's server (port 465 for SSL)
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        # Δυναμική σύνδεση ανάλογα με την πόρτα (465 = SSL, 587 = TLS)
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            
         server.login(sender_email, sender_password)
         server.send_message(msg)
         server.quit()
-        print(" [EMAIL] Alert sent successfully!")
+        print(" [EMAIL] Το Alert στάλθηκε με επιτυχία!")
     except Exception as e:
-        print(f" [EMAIL ERROR] Could not send email: {e}")
+        print(f" [EMAIL ERROR] Αποτυχία αποστολής: {e}")
 
 # --- INITIALIZE CAMERA & AI MODELS ---
 cap = cv2.VideoCapture(0)
@@ -65,11 +85,10 @@ while True:
         print("Error: Failed to grab a frame.")
         break
 
-    # Convert to grayscale for the Haar Cascades (it processes much faster)
+    # Convert to grayscale for the Haar Cascades
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     # Detect faces and bodies
-    # scaleFactor=1.3, minNeighbors=5 helps reduce false positives
     faces = face_cascade.detectMultiScale(gray_frame, 1.3, 5)
     bodies = body_cascade.detectMultiScale(gray_frame, 1.3, 5)
 
@@ -81,7 +100,6 @@ while True:
             is_recording = True
             
             # Generate a filename using the current date and time
-            # Format: DD-MM-YYYY-HH-MM-SS
             current_time = datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")
             filename = f"SECURITY_{current_time}.mp4"
             
@@ -89,13 +107,13 @@ while True:
             out = cv2.VideoWriter(filename, fourcc, 20.0, frame_size)
             print(f"\n[ALERT] Human Detected! Started recording: {filename}")
             
-            # UNCOMMENT the line below if you want to test the email feature
-            # send_security_email(current_time)
+            # Trigger the smart email alert
+            send_security_email(current_time)
             
         # Since we see the person, ensure the stopping timer is OFF
         timer_started = False
         
-        # Optional: Draw rectangles around detected faces/bodies for visual feedback
+        # Optional: Draw rectangles around detected faces/bodies
         for (x, y, w, h) in faces:
             cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
 
@@ -116,13 +134,11 @@ while True:
             print(" [OK] Recording saved and stopped. Back to monitoring.")
 
     # --- RECORD & DISPLAY ---
-    # If we are in recording mode, write the frame to the file
     if is_recording:
         # Add a visual "REC" indicator to the screen
         cv2.circle(frame, (30, 30), 10, (0, 0, 255), -1)
         cv2.putText(frame, "REC", (50, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
-        # Write the frame (with the REC dot) to the video file
         if out is not None:
             out.write(frame)
 
