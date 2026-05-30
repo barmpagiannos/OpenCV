@@ -71,6 +71,8 @@ py -3.11 -m pip install opencv-python numpy mediapipe==0.10.11 pyautogui cmake f
     SENDER_EMAIL=your_email@gmail.com
     SENDER_PASSWORD=your_16_digit_app_password
     RECEIVER_EMAIL=where_to_send_the_alert@gmail.com
+    SMTP_SERVER=smtp.gmail.com
+    SMTP_PORT=465
     ```
 
 * **`13_virtual_mouse.py`** - Sci-Fi computer control. Moves the physical computer mouse cursor by tracking the index finger in the air. Pinching the index and thumb together triggers a Left Click. 
